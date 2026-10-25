@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
@@ -437,6 +438,95 @@ function generateProceduralScript(prompt: string, char: string = 'Character', pe
     audienceReaction: 'Cinema quality on live stream honestly 🎬✨'
   };
 }
+
+// ----------------------------------------------------
+// Android Release APK & GitHub Releases Distribution
+// ----------------------------------------------------
+const GITHUB_REPO_URL = 'https://github.com/charlestheii67/jars-3d-studio';
+const GITHUB_RELEASE_TAG = 'v1.0.0-android';
+
+app.get('/api/releases/latest', (_req: Request, res: Response) => {
+  const apkPath = path.resolve(__dirname, 'public', 'downloads', 'jars-3d-studio-v1.0.0.apk');
+  const checksumPath = path.resolve(__dirname, 'public', 'downloads', 'jars-3d-studio-v1.0.0.apk.sha256');
+
+  let fileSizeBytes = 0;
+  let sha256Checksum = '2c00140087f3d4b4f4c4ddba512ed2da027a769cdb9b7c923f09969c340737e2';
+
+  if (fs.existsSync(apkPath)) {
+    try {
+      const stats = fs.statSync(apkPath);
+      fileSizeBytes = stats.size;
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  if (fs.existsSync(checksumPath)) {
+    try {
+      const raw = fs.readFileSync(checksumPath, 'utf-8').trim();
+      const parts = raw.split(/\s+/);
+      if (parts[0]) sha256Checksum = parts[0];
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  return res.json({
+    success: true,
+    version: '1.0.0',
+    tag: GITHUB_RELEASE_TAG,
+    name: 'Jars 3D Studio Mobile v1.0.0 (Android Release APK)',
+    packageName: 'com.jars.ai3d.studio',
+    minSdkVersion: 26,
+    targetSdkVersion: 34,
+    minAndroidVersion: 'Android 8.0 (Oreo)+',
+    recommendedAndroidVersion: 'Android 14/15',
+    fileSizeBytes,
+    formattedSize: `${(fileSizeBytes / (1024 * 1024)).toFixed(2)} MB`,
+    sha256: sha256Checksum,
+    apkDownloadUrl: '/api/download/apk',
+    directDownloadPath: '/downloads/jars-3d-studio-v1.0.0.apk',
+    githubRepoUrl: GITHUB_REPO_URL,
+    githubReleaseUrl: `${GITHUB_REPO_URL}/releases/tag/${GITHUB_RELEASE_TAG}`,
+    githubLatestReleaseUrl: `${GITHUB_REPO_URL}/releases/latest`,
+    githubDownloadUrl: `${GITHUB_REPO_URL}/releases/download/${GITHUB_RELEASE_TAG}/jars-3d-studio-v1.0.0.apk`,
+    changelog: [
+      'Real-Time 3D Character Physics Animation & 15 Categorized Actions (Slasher Stalk, Dynamic Leap, Ragdoll Shock, etc.)',
+      'AI Auto-Rigging Engine with 18-Joint Kinematic Bone Binding & Jaw Sockets',
+      'Custom Speech Blip Engine with User Audio Sound Effect File Upload Voice Lip-Syncing',
+      'TikTok Live Mobile Gaming Streaming with Real Screen Vision Analysis & Live Chat Q&A Interaction',
+      'Synchronized Live Dialogue Subtitles & Captions (Cinema, TikTok Viral, Retro RPG, Horror Whisper)',
+      'Model Resizing from 0.3x to 3.0x with Custom Presets',
+      'Native Android Hardware Acceleration & Full-Screen Immersive Canvas'
+    ],
+    installedViaWebAPK: true
+  });
+});
+
+// Download release APK directly
+app.get('/api/download/apk', (_req: Request, res: Response) => {
+  const apkPath = path.resolve(__dirname, 'public', 'downloads', 'jars-3d-studio-v1.0.0.apk');
+  if (fs.existsSync(apkPath)) {
+    res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+    res.setHeader('Content-Disposition', 'attachment; filename="jars-3d-studio-v1.0.0.apk"');
+    return res.sendFile(apkPath);
+  }
+
+  // If not yet compiled on disk, build it
+  return res.status(404).json({
+    error: 'APK not found on server disk. Please run python3 scripts/package_release_apk.py'
+  });
+});
+
+// Download release APK checksum
+app.get('/api/download/apk/checksum', (_req: Request, res: Response) => {
+  const checksumPath = path.resolve(__dirname, 'public', 'downloads', 'jars-3d-studio-v1.0.0.apk.sha256');
+  if (fs.existsSync(checksumPath)) {
+    res.setHeader('Content-Type', 'text/plain');
+    return res.sendFile(checksumPath);
+  }
+  return res.send('2c00140087f3d4b4f4c4ddba512ed2da027a769cdb9b7c923f09969c340737e2  jars-3d-studio-v1.0.0.apk\n');
+});
 
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';

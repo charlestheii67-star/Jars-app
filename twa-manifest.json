@@ -1,0 +1,42 @@
+{
+  "packageId": "com.jars.ai3d.studio",
+  "host": "ais-dev-tukpr3f6xf4fdlm45uohix-387092968143.us-west2.run.app",
+  "name": "Jars 3D Studio - AI Movie Maker",
+  "launcherName": "Jars 3D",
+  "themeColor": "#09090b",
+  "navigationColor": "#09090b",
+  "navigationColorDark": "#09090b",
+  "navigationDividerColor": "#00000000",
+  "navigationDividerColorDark": "#00000000",
+  "backgroundColor": "#09090b",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://ais-dev-tukpr3f6xf4fdlm45uohix-387092968143.us-west2.run.app/icons/icon-512.png",
+  "maskableIconUrl": "https://ais-dev-tukpr3f6xf4fdlm45uohix-387092968143.us-west2.run.app/icons/icon-maskable-512.png",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "signing": {
+    "scheme": "v2",
+    "keyStore": "./android.keystore",
+    "keyAlias": "android"
+  },
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://ais-dev-tukpr3f6xf4fdlm45uohix-387092968143.us-west2.run.app/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": {
+      "enabled": false
+    },
+    "playBilling": {
+      "enabled": false
+    }
+  },
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "fullScopeUrl": "https://ais-dev-tukpr3f6xf4fdlm45uohix-387092968143.us-west2.run.app/",
+  "minSdkVersion": 26,
+  "targetSdkVersion": 34
+}

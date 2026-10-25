@@ -5,10 +5,11 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { SceneManager } from './engine/SceneManager';
-import { DirectorState, VoiceProfile } from './types';
+import { DirectorState } from './types';
 import { DirectorDock } from './components/DirectorDock';
 import { ViewportHUD } from './components/ViewportHUD';
 import { DialogueCaptionsOverlay } from './components/DialogueCaptionsOverlay';
+import { AndroidReleaseModal } from './components/AndroidReleaseModal';
 import { globalAudioVoiceEngine } from './engine/AudioVoiceEngine';
 
 export default function App() {
@@ -61,6 +62,7 @@ export default function App() {
   });
 
   const [isDockVisible, setIsDockVisible] = useState(true);
+  const [isAndroidModalOpen, setIsAndroidModalOpen] = useState(false);
 
   // Initialize Three.js SceneManager once on mount
   useEffect(() => {
@@ -115,6 +117,7 @@ export default function App() {
         isDockVisible={isDockVisible}
         onToggleDock={() => setIsDockVisible(!isDockVisible)}
         onQuickSlash={handleQuickSlash}
+        onOpenAndroidModal={() => setIsAndroidModalOpen(true)}
       />
 
       {/* Live Dialogue Captions Overlay */}
@@ -130,8 +133,15 @@ export default function App() {
           sceneManager={sceneManagerRef.current}
           state={state}
           onUpdateState={handleUpdateState}
+          onOpenAndroidModal={() => setIsAndroidModalOpen(true)}
         />
       )}
+
+      {/* Official Android Release APK & GitHub Distribution Modal */}
+      <AndroidReleaseModal
+        isOpen={isAndroidModalOpen}
+        onClose={() => setIsAndroidModalOpen(false)}
+      />
     </div>
   );
 }

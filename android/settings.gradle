@@ -1,0 +1,2 @@
+rootProject.name = "Jars3DStudio"
+include ':app'

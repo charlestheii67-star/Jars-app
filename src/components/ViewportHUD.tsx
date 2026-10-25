@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, EyeOff, Volume2, VolumeX, Sparkles, Radio, Clapperboard, Video } from 'lucide-react';
+import { Eye, EyeOff, Volume2, VolumeX, Sparkles, Radio, Clapperboard, Video, Smartphone } from 'lucide-react';
 import { DirectorState } from '../types';
 
 interface ViewportHUDProps {
@@ -8,6 +8,7 @@ interface ViewportHUDProps {
   isDockVisible: boolean;
   onToggleDock: () => void;
   onQuickSlash: () => void;
+  onOpenAndroidModal: () => void;
 }
 
 export const ViewportHUD: React.FC<ViewportHUDProps> = ({
@@ -16,6 +17,7 @@ export const ViewportHUD: React.FC<ViewportHUDProps> = ({
   isDockVisible,
   onToggleDock,
   onQuickSlash,
+  onOpenAndroidModal,
 }) => {
   return (
     <>
@@ -49,6 +51,16 @@ export const ViewportHUD: React.FC<ViewportHUDProps> = ({
 
         {/* Right Action Icons */}
         <div className="flex items-center gap-2 pointer-events-auto">
+          {/* Android Release APK & GitHub Button */}
+          <button
+            onClick={onOpenAndroidModal}
+            className="px-3 py-1.5 bg-zinc-950/90 hover:bg-zinc-900 border border-emerald-500/40 rounded-xl text-xs font-semibold text-emerald-400 flex items-center gap-1.5 shadow-xl transition-all hover:border-emerald-400 cursor-pointer"
+            title="Download Android Release APK or view GitHub Release"
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Android APK</span>
+          </button>
+
           {/* Quick Action: Attack / Flourish */}
           <button
             onClick={onQuickSlash}
