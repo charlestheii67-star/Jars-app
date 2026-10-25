@@ -1,0 +1,6 @@
+{
+  "name": "Jars 3D Studio - AI Movie Maker & Live Avatar Engine",
+  "description": "Real-time 3D cinematic movie studio and virtual streamer engine with procedural environments, physics-based character animation, AI voice cloning & lip-syncing, custom 3D model import, and TikTok Live mobile interactive streaming.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
