@@ -19,30 +19,36 @@ import {
   Wand2,
   Eye,
   RefreshCw,
+  Cpu,
+  Music,
+  FileAudio,
+  Subtitles,
 } from 'lucide-react';
 import {
   AnimationState,
   CameraShot,
+  CaptionStyle,
   CharacterConfig,
   CharacterId,
   CinematicSceneScript,
   DirectorState,
   EnvironmentBiome,
   LightingMood,
-  VoiceProfile,
+  SpeechBlipType,
   WeatherType,
 } from '../types';
 import { SceneManager } from '../engine/SceneManager';
 import { ModelImporter } from '../engine/ModelImporter';
 import { globalAudioVoiceEngine } from '../engine/AudioVoiceEngine';
 import { TikTokLiveStudio } from './TikTokLiveStudio';
+import { AIRiggingModal } from './AIRiggingModal';
 
 interface DirectorDockProps {
   sceneManager: SceneManager | null;
   state: DirectorState;
   onUpdateState: (updates: Partial<DirectorState>) => void;
-  voiceProfile: VoiceProfile;
-  onUpdateVoiceProfile: (updates: Partial<VoiceProfile>) => void;
+  voiceProfile?: any;
+  onUpdateVoiceProfile?: (updates: any) => void;
 }
 
 const PRESET_CHARACTERS: CharacterConfig[] = [
@@ -53,14 +59,12 @@ const PRESET_CHARACTERS: CharacterConfig[] = [
     personality: 'Silent, relentless, terrifying, immortal predator devoted to Camp Crystal Lake',
     dialogueStyle: 'Deep, guttural, threatening whispers with long pauses and cold finality',
     defaultAnimation: 'stalk',
-    voiceProfile: {
-      presetName: 'Slasher Growl',
-      pitch: 0.35,
-      rate: 0.75,
-      reverb: 0.8,
-      distortion: 0.6,
-      formantShift: -8,
-      voiceGender: 'monster',
+    blipConfig: {
+      soundType: 'slasher_grunt',
+      pitch: 0.65,
+      speedMs: 95,
+      pitchVariation: 0.35,
+      volume: 0.9,
     },
     primaryColor: '#166534',
     accentColor: '#dc2626',
@@ -72,14 +76,12 @@ const PRESET_CHARACTERS: CharacterConfig[] = [
     personality: 'Fast-talking, witty, charismatic cyberpunk streamer with neon tech gear',
     dialogueStyle: 'Enthusiastic, tech-slang, audience-focused, energetic callouts',
     defaultAnimation: 'dance',
-    voiceProfile: {
-      presetName: 'Cyber V-Tuber',
-      pitch: 1.45,
-      rate: 1.15,
-      reverb: 0.3,
-      distortion: 0.1,
-      formantShift: 4,
-      voiceGender: 'female',
+    blipConfig: {
+      soundType: 'cyber_holo',
+      pitch: 1.35,
+      speedMs: 58,
+      pitchVariation: 0.3,
+      volume: 0.85,
     },
     primaryColor: '#06b6d4',
     accentColor: '#ec4899',
@@ -91,14 +93,12 @@ const PRESET_CHARACTERS: CharacterConfig[] = [
     personality: 'Cold, calculated, tactical military combat AI unit',
     dialogueStyle: 'Synthesized, protocol-driven, monotone, tactical telemetry readouts',
     defaultAnimation: 'walk',
-    voiceProfile: {
-      presetName: 'Titan Synthesizer',
-      pitch: 0.6,
-      rate: 0.9,
-      reverb: 0.5,
-      distortion: 0.7,
-      formantShift: -5,
-      voiceGender: 'robot',
+    blipConfig: {
+      soundType: 'mech_relay',
+      pitch: 0.8,
+      speedMs: 80,
+      pitchVariation: 0.15,
+      volume: 0.9,
     },
     primaryColor: '#eab308',
     accentColor: '#ef4444',
@@ -110,14 +110,12 @@ const PRESET_CHARACTERS: CharacterConfig[] = [
     personality: 'Mysterious, wise, poetic celestial spellcaster',
     dialogueStyle: 'Eloquent, metaphorical, dramatic anime hero speech',
     defaultAnimation: 'talk',
-    voiceProfile: {
-      presetName: 'Arcane Voice',
-      pitch: 1.1,
-      rate: 0.95,
-      reverb: 0.7,
-      distortion: 0.05,
-      formantShift: 2,
-      voiceGender: 'male',
+    blipConfig: {
+      soundType: 'crystal_whisper',
+      pitch: 1.05,
+      speedMs: 70,
+      pitchVariation: 0.25,
+      volume: 0.85,
     },
     primaryColor: '#7c3aed',
     accentColor: '#f59e0b',
@@ -129,14 +127,12 @@ const PRESET_CHARACTERS: CharacterConfig[] = [
     personality: 'Bouncy, hyperactive, comedic slapstick cartoon character',
     dialogueStyle: 'High-pitch excitement, silly jokes, joyful comedic punchlines',
     defaultAnimation: 'idle',
-    voiceProfile: {
-      presetName: 'Cartoon Pitch',
-      pitch: 1.7,
-      rate: 1.3,
-      reverb: 0.2,
-      distortion: 0.0,
-      formantShift: 8,
-      voiceGender: 'male',
+    blipConfig: {
+      soundType: 'animal_speak',
+      pitch: 1.5,
+      speedMs: 55,
+      pitchVariation: 0.45,
+      volume: 0.9,
     },
     primaryColor: '#3b82f6',
     accentColor: '#f97316',
@@ -155,14 +151,31 @@ export const DirectorDock: React.FC<DirectorDockProps> = ({
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [currentScript, setCurrentScript] = useState<CinematicSceneScript | null>(null);
 
+  const [isAIRigModalOpen, setIsAIRigModalOpen] = useState(false);
+  const sfxFileInputRef = useRef<HTMLInputElement | null>(null);
+
   // Custom 3D Model file input ref
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [importedModelName, setImportedModelName] = useState<string | null>(null);
 
-  // Voice recording simulation
-  const [isRecordingVoiceSample, setIsRecordingVoiceSample] = useState(false);
-  const [customVoiceName, setCustomVoiceName] = useState('My Cloned Voice');
-  const [testSpeechText, setTestSpeechText] = useState('Welcome to Jars 3D Studio. Every character speaks with real-time lip-sync and physics motion.');
+  const [testSpeechText, setTestSpeechText] = useState('Welcome to Jars 3D Studio. Every character speaks with custom sound effect blips and live captions.');
+
+  // Handle Character Scale & Speed Change
+  const handleScaleChange = (scale: number) => {
+    const clamped = Math.max(0.3, Math.min(3.5, scale));
+    onUpdateState({ characterScale: clamped });
+    if (sceneManager) {
+      sceneManager.setCharacterScale(clamped);
+    }
+  };
+
+  const handleSpeedChange = (speed: number) => {
+    const clamped = Math.max(0.2, Math.min(3.0, speed));
+    onUpdateState({ animationSpeed: clamped });
+    if (sceneManager) {
+      sceneManager.setAnimationSpeed(clamped);
+    }
+  };
 
   // Handle Character Change
   const handleSelectCharacter = (char: CharacterConfig) => {
@@ -172,11 +185,13 @@ export const DirectorDock: React.FC<DirectorDockProps> = ({
       personalityPrompt: char.personality,
       dialogueStylePrompt: char.dialogueStyle,
       animationState: char.defaultAnimation,
+      speechBlipConfig: char.blipConfig,
     });
-    onUpdateVoiceProfile(char.voiceProfile);
 
     if (sceneManager) {
       sceneManager.loadCharacter(char.id);
+      sceneManager.setCharacterScale(state.characterScale || 1.0);
+      sceneManager.setAnimationSpeed(state.animationSpeed || 1.0);
       sceneManager.setAnimationState(char.defaultAnimation);
     }
   };
@@ -196,6 +211,27 @@ export const DirectorDock: React.FC<DirectorDockProps> = ({
       });
     } catch (err: any) {
       alert(err.message || 'Error loading 3D model');
+    }
+  };
+
+  // Handle Custom Sound Effect Audio Upload as Character Voice
+  const handleCustomSFXUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const buffer = await globalAudioVoiceEngine.loadAudioFileAsBuffer(file);
+      onUpdateState({
+        speechBlipConfig: {
+          ...state.speechBlipConfig,
+          soundType: 'custom_sound',
+          customAudioBuffer: buffer,
+          customAudioFileName: file.name,
+          customAudioDuration: buffer.duration,
+        },
+      });
+    } catch (err: any) {
+      alert('Could not decode audio file: ' + err?.message);
     }
   };
 
@@ -262,7 +298,7 @@ export const DirectorDock: React.FC<DirectorDockProps> = ({
     }
   };
 
-  // Perform Cinematic Scene
+  // Perform Cinematic Scene with Custom Sound Effect Speech Blips & Synchronized Captions
   const handlePerformScene = () => {
     if (!currentScript || !sceneManager) return;
     onUpdateState({ isPerformingScene: true });
@@ -276,23 +312,72 @@ export const DirectorDock: React.FC<DirectorDockProps> = ({
       globalAudioVoiceEngine.playSoundEffect(currentScript.soundEffect);
     }
 
-    // 4. Voice synthesis & real-time lip sync
-    globalAudioVoiceEngine.speak(currentScript.dialogue, voiceProfile, () => {
-      onUpdateState({ isPerformingScene: false });
-      handleSelectAnimation('idle');
+    // 4. Reset captions
+    onUpdateState({
+      captionConfig: {
+        ...state.captionConfig,
+        currentText: currentScript.dialogue,
+        visibleText: '',
+        speakerName: state.characterName,
+      },
     });
+
+    // 5. Speech Blips with live typewriter caption callback
+    globalAudioVoiceEngine.speakWithBlips(
+      currentScript.dialogue,
+      state.speechBlipConfig,
+      () => {
+        onUpdateState({ isPerformingScene: false });
+        handleSelectAnimation('idle');
+      },
+      (visibleText) => {
+        onUpdateState({
+          captionConfig: {
+            ...state.captionConfig,
+            currentText: currentScript.dialogue,
+            visibleText,
+            speakerName: state.characterName,
+          },
+        });
+      }
+    );
   };
 
-  // Test Speech Synthesis
+  // Test Speech Blips & Captions
   const handleTestSpeech = () => {
     if (sceneManager) {
       sceneManager.setAnimationState('talk');
     }
-    globalAudioVoiceEngine.speak(testSpeechText, voiceProfile, () => {
-      if (sceneManager) {
-        sceneManager.setAnimationState('idle');
-      }
+    onUpdateState({
+      isSpeaking: true,
+      captionConfig: {
+        ...state.captionConfig,
+        currentText: testSpeechText,
+        visibleText: '',
+        speakerName: state.characterName,
+      },
     });
+
+    globalAudioVoiceEngine.speakWithBlips(
+      testSpeechText,
+      state.speechBlipConfig,
+      () => {
+        onUpdateState({ isSpeaking: false });
+        if (sceneManager) {
+          sceneManager.setAnimationState('idle');
+        }
+      },
+      (visibleText) => {
+        onUpdateState({
+          captionConfig: {
+            ...state.captionConfig,
+            currentText: testSpeechText,
+            visibleText,
+            speakerName: state.characterName,
+          },
+        });
+      }
+    );
   };
 
   // Record 60fps WebM clip
@@ -378,8 +463,8 @@ export const DirectorDock: React.FC<DirectorDockProps> = ({
               activeTab === 'voice' ? 'bg-cyan-500 text-zinc-950 font-bold shadow-sm' : 'text-zinc-400 hover:text-white'
             }`}
           >
-            <Mic className="w-3.5 h-3.5" />
-            <span>Voice & Lip-Sync</span>
+            <FileAudio className="w-3.5 h-3.5" />
+            <span>Speech Blips & SFX</span>
           </button>
 
           <button
@@ -513,20 +598,29 @@ export const DirectorDock: React.FC<DirectorDockProps> = ({
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-zinc-300">Choose 3D Character Archetype or Import Custom Model:</span>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-colors"
-              >
-                <Upload className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Import 3D Model (.glb / .gltf / .obj)</span>
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".glb,.gltf,.obj"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsAIRigModalOpen(true)}
+                  className="px-3 py-1.5 bg-gradient-to-r from-cyan-500/20 to-pink-500/20 hover:from-cyan-500/30 hover:to-pink-500/30 border border-cyan-500/40 text-cyan-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all shadow-md"
+                >
+                  <Cpu className="w-3.5 h-3.5 text-pink-400" />
+                  <span>AI Auto-Rigging</span>
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Upload className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Import 3D Model (.glb / .gltf / .obj)</span>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".glb,.gltf,.obj"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </div>
             </div>
 
             {/* Character Cards */}
@@ -575,23 +669,193 @@ export const DirectorDock: React.FC<DirectorDockProps> = ({
               </div>
             </div>
 
-            {/* Animation Poses */}
-            <div className="pt-2">
-              <span className="text-[11px] font-semibold text-zinc-400 block mb-2">Kinematic Animation State:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {(['idle', 'stalk', 'walk', 'slash', 'talk', 'dance', 'ragdollShock'] as AnimationState[]).map((anim) => (
-                  <button
-                    key={anim}
-                    onClick={() => handleSelectAnimation(anim)}
-                    className={`px-3 py-1 rounded-lg text-xs capitalize cursor-pointer transition-colors ${
-                      state.animationState === anim
-                        ? 'bg-cyan-500 text-zinc-950 font-bold'
-                        : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800'
-                    }`}
-                  >
-                    {anim === 'ragdollShock' ? 'Physics Ragdoll' : anim}
-                  </button>
-                ))}
+            {/* Model Resizing & Scale Controls */}
+            <div className="pt-3 border-t border-zinc-800/80 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-zinc-300">Model Scale & Resizing:</span>
+                  <span className="text-xs font-mono font-bold text-cyan-400">
+                    {(state.characterScale || 1.0).toFixed(2)}x Scale
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-zinc-500">Presets:</span>
+                  {[
+                    { label: 'Mini 0.5x', scale: 0.5 },
+                    { label: 'Compact 0.8x', scale: 0.8 },
+                    { label: 'Normal 1.0x', scale: 1.0 },
+                    { label: 'Giant 1.5x', scale: 1.5 },
+                    { label: 'Titan 2.2x', scale: 2.2 },
+                  ].map((p) => (
+                    <button
+                      key={p.label}
+                      onClick={() => handleScaleChange(p.scale)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${
+                        Math.abs((state.characterScale || 1.0) - p.scale) < 0.05
+                          ? 'bg-cyan-500 text-zinc-950 font-bold'
+                          : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-zinc-900/60 p-3 rounded-xl border border-zinc-800">
+                <div>
+                  <div className="flex justify-between text-[11px] mb-1">
+                    <span className="text-zinc-400">Character Model Scale</span>
+                    <span className="text-cyan-400 font-mono">{(state.characterScale || 1.0).toFixed(2)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.3"
+                    max="3.0"
+                    step="0.05"
+                    value={state.characterScale || 1.0}
+                    onChange={(e) => handleScaleChange(parseFloat(e.target.value))}
+                    className="w-full accent-cyan-400 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[9px] text-zinc-500 mt-0.5">
+                    <span>0.3x (Chibi)</span>
+                    <span>1.0x (Standard)</span>
+                    <span>3.0x (Colossus)</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-[11px] mb-1">
+                    <span className="text-zinc-400">Animation Motion Speed</span>
+                    <span className="text-pink-400 font-mono">{(state.animationSpeed || 1.0).toFixed(2)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.25"
+                    max="2.5"
+                    step="0.05"
+                    value={state.animationSpeed || 1.0}
+                    onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                    className="w-full accent-pink-400 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[9px] text-zinc-500 mt-0.5">
+                    <span>0.25x (Slow-Mo)</span>
+                    <span>1.0x (Normal)</span>
+                    <span>2.5x (Hyper)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Categorized Model Animations Deck */}
+            <div className="pt-2 border-t border-zinc-800/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-zinc-300">Model Animations:</span>
+                <span className="text-[10px] text-pink-400 font-mono uppercase">
+                  Current: {state.animationState}
+                </span>
+              </div>
+
+              {/* Animation Categories */}
+              <div className="space-y-2">
+                {/* Combat & Slasher */}
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-red-400 tracking-wider block mb-1">Combat & Stalking</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { id: 'stalk', label: 'Menacing Stalk' },
+                      { id: 'slash', label: 'Heavy Slash' },
+                      { id: 'combatCombo', label: '3-Hit Combo' },
+                      { id: 'ninjaSneak', label: 'Ninja Sneak' },
+                    ].map((anim) => (
+                      <button
+                        key={anim.id}
+                        onClick={() => handleSelectAnimation(anim.id as AnimationState)}
+                        className={`px-3 py-1 rounded-lg text-xs cursor-pointer transition-all ${
+                          state.animationState === anim.id
+                            ? 'bg-red-500 text-white font-bold shadow-md shadow-red-500/20'
+                            : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800'
+                        }`}
+                      >
+                        {anim.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Locomotion & Action */}
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-cyan-400 tracking-wider block mb-1">Action & Locomotion</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { id: 'walk', label: 'Natural Walk' },
+                      { id: 'run', label: 'Athletic Run' },
+                      { id: 'jump', label: 'Dynamic Jump' },
+                      { id: 'ragdollShock', label: 'Physics Ragdoll' },
+                    ].map((anim) => (
+                      <button
+                        key={anim.id}
+                        onClick={() => handleSelectAnimation(anim.id as AnimationState)}
+                        className={`px-3 py-1 rounded-lg text-xs cursor-pointer transition-all ${
+                          state.animationState === anim.id
+                            ? 'bg-cyan-500 text-zinc-950 font-bold shadow-md shadow-cyan-500/20'
+                            : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800'
+                        }`}
+                      >
+                        {anim.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Social & Live Stream */}
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-pink-400 tracking-wider block mb-1">Social, Streams & Acting</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { id: 'talk', label: 'Expressive Talk' },
+                      { id: 'dance', label: 'TikTok Live Dance' },
+                      { id: 'celebrate', label: 'Victory Celebrate' },
+                      { id: 'bow', label: 'Theatrical Bow' },
+                    ].map((anim) => (
+                      <button
+                        key={anim.id}
+                        onClick={() => handleSelectAnimation(anim.id as AnimationState)}
+                        className={`px-3 py-1 rounded-lg text-xs cursor-pointer transition-all ${
+                          state.animationState === anim.id
+                            ? 'bg-pink-500 text-zinc-950 font-bold shadow-md shadow-pink-500/20'
+                            : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800'
+                        }`}
+                      >
+                        {anim.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Reactions & Emotion */}
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider block mb-1">Emotion & Reactions</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { id: 'cower', label: 'Terrified Cower' },
+                      { id: 'evilLaugh', label: 'Menacing Evil Laugh' },
+                      { id: 'idle', label: 'Calm Breathing' },
+                    ].map((anim) => (
+                      <button
+                        key={anim.id}
+                        onClick={() => handleSelectAnimation(anim.id as AnimationState)}
+                        className={`px-3 py-1 rounded-lg text-xs cursor-pointer transition-all ${
+                          state.animationState === anim.id
+                            ? 'bg-amber-400 text-zinc-950 font-bold shadow-md shadow-amber-400/20'
+                            : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800'
+                        }`}
+                      >
+                        {anim.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -670,108 +934,226 @@ export const DirectorDock: React.FC<DirectorDockProps> = ({
           </div>
         )}
 
-        {/* TAB 4: AI VOICE CLONING & LIP-SYNC STUDIO */}
+        {/* TAB 4: SPEECH BLIPS, CUSTOM SFX VOICE & CAPTIONS STUDIO */}
         {activeTab === 'voice' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2 space-y-3">
+              {/* Sound Profile Selector */}
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-zinc-300">Voice Synthesis & Cloning DSP:</span>
-                <span className="text-[10px] text-cyan-400 font-mono">Active Profile: {voiceProfile.presetName}</span>
+                <span className="text-xs font-semibold text-zinc-300">Speech Blip Voice & Custom Sound Effect:</span>
+                <span className="text-[10px] text-cyan-400 font-mono uppercase">
+                  Profile: {state.speechBlipConfig?.soundType?.replace('_', ' ') || 'Slasher Grunt'}
+                </span>
               </div>
 
+              {/* Sound Type Buttons */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: 'slasher_grunt', label: 'Slasher Grunt', desc: 'Throat clicks & rasps' },
+                  { id: 'retro_8bit', label: '8-Bit Retro RPG', desc: 'Undertale style beeps' },
+                  { id: 'cyber_holo', label: 'Cyber Synth', desc: 'Holographic chirps' },
+                  { id: 'animal_speak', label: 'Animal Speak', desc: 'Cartoon pitch chatter' },
+                  { id: 'crystal_whisper', label: 'Crystal Rune', desc: 'Ethereal rune chimes' },
+                  { id: 'mech_relay', label: 'Mech Relay', desc: 'Pneumatic servo clicks' },
+                  { id: 'custom_sound', label: 'Custom SFX File', desc: state.speechBlipConfig?.customAudioFileName || 'Upload audio file' },
+                ].map((sfx) => (
+                  <button
+                    key={sfx.id}
+                    onClick={() =>
+                      onUpdateState({
+                        speechBlipConfig: {
+                          ...state.speechBlipConfig,
+                          soundType: sfx.id as SpeechBlipType,
+                        },
+                      })
+                    }
+                    className={`p-2 rounded-xl border text-left cursor-pointer transition-all ${
+                      state.speechBlipConfig?.soundType === sfx.id
+                        ? 'bg-zinc-900 border-cyan-400 shadow-lg ring-1 ring-cyan-400/40'
+                        : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700'
+                    }`}
+                  >
+                    <span className="text-xs font-bold text-white block">{sfx.label}</span>
+                    <span className="text-[10px] text-zinc-400 line-clamp-1">{sfx.desc}</span>
+                  </button>
+                ))}
+
+                {/* Custom SFX Upload Button */}
+                <button
+                  onClick={() => sfxFileInputRef.current?.click()}
+                  className="p-2 rounded-xl border border-dashed border-pink-500/50 bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 text-left cursor-pointer transition-all flex flex-col justify-center"
+                >
+                  <div className="flex items-center gap-1.5 text-xs font-bold">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload SFX</span>
+                  </div>
+                  <span className="text-[10px] text-pink-400/80">.wav, .mp3, .ogg</span>
+                </button>
+                <input
+                  ref={sfxFileInputRef}
+                  type="file"
+                  accept="audio/*"
+                  onChange={handleCustomSFXUpload}
+                  className="hidden"
+                />
+              </div>
+
+              {/* Speech Blips Modulation Controls */}
               <div className="grid grid-cols-2 gap-3 bg-zinc-900/60 p-3 rounded-xl border border-zinc-800">
                 <div>
                   <div className="flex justify-between text-[11px] mb-1">
-                    <span className="text-zinc-400">Voice Pitch</span>
-                    <span className="text-cyan-400 font-mono">{voiceProfile.pitch.toFixed(2)}x</span>
+                    <span className="text-zinc-400">Blip Pitch</span>
+                    <span className="text-cyan-400 font-mono">{(state.speechBlipConfig?.pitch || 1.0).toFixed(2)}x</span>
                   </div>
                   <input
                     type="range"
                     min="0.2"
-                    max="2.0"
+                    max="2.5"
                     step="0.05"
-                    value={voiceProfile.pitch}
-                    onChange={(e) => onUpdateVoiceProfile({ pitch: parseFloat(e.target.value) })}
-                    className="w-full accent-cyan-400"
+                    value={state.speechBlipConfig?.pitch || 1.0}
+                    onChange={(e) =>
+                      onUpdateState({
+                        speechBlipConfig: {
+                          ...state.speechBlipConfig,
+                          pitch: parseFloat(e.target.value),
+                        },
+                      })
+                    }
+                    className="w-full accent-cyan-400 cursor-pointer"
                   />
                 </div>
 
                 <div>
                   <div className="flex justify-between text-[11px] mb-1">
-                    <span className="text-zinc-400">Speech Rate</span>
-                    <span className="text-cyan-400 font-mono">{voiceProfile.rate.toFixed(2)}x</span>
+                    <span className="text-zinc-400">Blip Cadence / Speed</span>
+                    <span className="text-cyan-400 font-mono">{state.speechBlipConfig?.speedMs || 75}ms</span>
                   </div>
                   <input
                     type="range"
-                    min="0.5"
-                    max="1.8"
-                    step="0.05"
-                    value={voiceProfile.rate}
-                    onChange={(e) => onUpdateVoiceProfile({ rate: parseFloat(e.target.value) })}
-                    className="w-full accent-cyan-400"
+                    min="35"
+                    max="160"
+                    step="5"
+                    value={state.speechBlipConfig?.speedMs || 75}
+                    onChange={(e) =>
+                      onUpdateState({
+                        speechBlipConfig: {
+                          ...state.speechBlipConfig,
+                          speedMs: parseInt(e.target.value),
+                        },
+                      })
+                    }
+                    className="w-full accent-cyan-400 cursor-pointer"
                   />
                 </div>
 
                 <div>
                   <div className="flex justify-between text-[11px] mb-1">
-                    <span className="text-zinc-400">Harmonic Distortion</span>
-                    <span className="text-pink-400 font-mono">{Math.round(voiceProfile.distortion * 100)}%</span>
+                    <span className="text-zinc-400">Pitch Jitter / Variation</span>
+                    <span className="text-pink-400 font-mono">{Math.round((state.speechBlipConfig?.pitchVariation || 0.3) * 100)}%</span>
                   </div>
                   <input
                     type="range"
                     min="0"
                     max="1"
                     step="0.05"
-                    value={voiceProfile.distortion}
-                    onChange={(e) => onUpdateVoiceProfile({ distortion: parseFloat(e.target.value) })}
-                    className="w-full accent-pink-400"
+                    value={state.speechBlipConfig?.pitchVariation || 0.3}
+                    onChange={(e) =>
+                      onUpdateState({
+                        speechBlipConfig: {
+                          ...state.speechBlipConfig,
+                          pitchVariation: parseFloat(e.target.value),
+                        },
+                      })
+                    }
+                    className="w-full accent-pink-400 cursor-pointer"
                   />
                 </div>
 
                 <div>
                   <div className="flex justify-between text-[11px] mb-1">
-                    <span className="text-zinc-400">Acoustic Reverb</span>
-                    <span className="text-pink-400 font-mono">{Math.round(voiceProfile.reverb * 100)}%</span>
+                    <span className="text-zinc-400">Blip Volume</span>
+                    <span className="text-pink-400 font-mono">{Math.round((state.speechBlipConfig?.volume ?? 0.9) * 100)}%</span>
                   </div>
                   <input
                     type="range"
-                    min="0"
+                    min="0.1"
                     max="1"
                     step="0.05"
-                    value={voiceProfile.reverb}
-                    onChange={(e) => onUpdateVoiceProfile({ reverb: parseFloat(e.target.value) })}
-                    className="w-full accent-pink-400"
+                    value={state.speechBlipConfig?.volume ?? 0.9}
+                    onChange={(e) =>
+                      onUpdateState({
+                        speechBlipConfig: {
+                          ...state.speechBlipConfig,
+                          volume: parseFloat(e.target.value),
+                        },
+                      })
+                    }
+                    className="w-full accent-pink-400 cursor-pointer"
                   />
                 </div>
               </div>
 
-              {/* Sound Effects Player */}
-              <div>
-                <span className="text-[11px] font-semibold text-zinc-400 block mb-1.5">Cinematic Audio Stingers:</span>
-                <div className="flex flex-wrap gap-2">
+              {/* Dialogue Captions Settings */}
+              <div className="bg-zinc-900/60 p-3 rounded-xl border border-zinc-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Subtitles className="w-4 h-4 text-yellow-400" />
+                    <span className="text-xs font-semibold text-zinc-200">Live Dialogue Captions</span>
+                  </div>
+                  <label className="flex items-center gap-1.5 text-xs text-zinc-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={state.captionConfig?.enabled ?? true}
+                      onChange={(e) =>
+                        onUpdateState({
+                          captionConfig: {
+                            ...state.captionConfig,
+                            enabled: e.target.checked,
+                          },
+                        })
+                      }
+                      className="rounded bg-zinc-950 border-zinc-700 text-yellow-400 focus:ring-0"
+                    />
+                    <span>Show Captions</span>
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-1">
                   {[
-                    { id: 'metalSlash', label: 'Horror Machete Slash' },
-                    { id: 'subBassBoom', label: 'Sub-Bass Movie Boom' },
-                    { id: 'synthDrone', label: 'Dark Synth Drone' },
-                    { id: 'thunder', label: 'Thunder Strike' },
-                    { id: 'kiKiMaMa', label: 'Ki-Ki-Ki, Ma-Ma-Ma' },
-                  ].map((sfx) => (
+                    { id: 'cinema', label: 'Cinema Subtitles' },
+                    { id: 'tiktok_viral', label: 'TikTok Viral Bold' },
+                    { id: 'retro_rpg', label: 'Retro RPG Box' },
+                    { id: 'horror_whisper', label: 'Horror Whisper' },
+                  ].map((style) => (
                     <button
-                      key={sfx.id}
-                      onClick={() => globalAudioVoiceEngine.playSoundEffect(sfx.id as any)}
-                      className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded text-xs text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                      key={style.id}
+                      onClick={() =>
+                        onUpdateState({
+                          captionConfig: {
+                            ...state.captionConfig,
+                            style: style.id as CaptionStyle,
+                          },
+                        })
+                      }
+                      className={`px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-colors ${
+                        state.captionConfig?.style === style.id
+                          ? 'bg-yellow-400 text-zinc-950 font-bold'
+                          : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
                     >
-                      {sfx.label}
+                      {style.label}
                     </button>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* Test Speech Synthesizer & Lip-Sync Card */}
+            {/* Test Speech Blips & Lip-Sync Card */}
             <div className="bg-zinc-900/80 rounded-xl p-3 border border-zinc-800 flex flex-col justify-between">
               <div>
-                <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block mb-1">Live Lip-Sync Test</span>
+                <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block mb-1">
+                  Live Blips & Captions Test
+                </span>
                 <textarea
                   rows={3}
                   value={testSpeechText}
@@ -780,16 +1162,38 @@ export const DirectorDock: React.FC<DirectorDockProps> = ({
                 />
               </div>
 
-              <button
-                onClick={handleTestSpeech}
-                className="mt-3 w-full py-2 bg-gradient-to-r from-cyan-400 to-pink-500 hover:opacity-95 text-zinc-950 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
-              >
-                <Volume2 className="w-3.5 h-3.5" />
-                <span>Speak with Real-Time Lip-Sync</span>
-              </button>
+              <div className="space-y-2 mt-3">
+                <button
+                  onClick={handleTestSpeech}
+                  className="w-full py-2 bg-gradient-to-r from-cyan-400 to-pink-500 hover:opacity-95 text-zinc-950 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>Play Speech Blips</span>
+                </button>
+
+                {state.speechBlipConfig?.customAudioFileName && (
+                  <p className="text-[10px] text-pink-400 text-center truncate">
+                    Loaded SFX: {state.speechBlipConfig.customAudioFileName}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         )}
+
+        {/* AI Auto-Rigging Modal */}
+        <AIRiggingModal
+          isOpen={isAIRigModalOpen}
+          onClose={() => setIsAIRigModalOpen(false)}
+          sceneManager={sceneManager}
+          aiRigging={state.aiRigging}
+          onUpdateAIRigging={(updates) =>
+            onUpdateState({
+              aiRigging: { ...state.aiRigging, ...updates },
+            })
+          }
+          characterName={state.characterName}
+        />
 
         {/* TAB 5: TIKTOK LIVE & SCREEN AWARENESS */}
         {activeTab === 'tiktok' && (

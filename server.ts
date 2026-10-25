@@ -210,7 +210,7 @@ app.post('/api/analyze-screen', async (req: Request, res: Response) => {
     try {
       const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
       const response = await genAI.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: [
           {
             text: `You are the 3D character "${characterName || 'Hero'}" with personality "${personality || 'Intense'}".
@@ -267,7 +267,7 @@ Return JSON format: {
 }`;
 
       const response = await genAI.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -330,7 +330,7 @@ Format your response strictly as JSON with this schema:
 }`;
 
       const response = await genAI.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: `Create a cinematic performance script based on this user prompt: "${prompt}". Character: ${characterName}, Personality: ${personality}, Mood: ${mood}`,
         config: {
           systemInstruction,
@@ -359,7 +359,7 @@ app.post('/api/generate-tiktok-comments', async (req: Request, res: Response) =>
   if (genAI) {
     try {
       const response = await genAI.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: `Generate 5 realistic, funny, and hype TikTok live chat comments reacting to ${characterName} doing "${lastAction}". Return JSON array of strings.`,
         config: {
           responseMimeType: 'application/json',

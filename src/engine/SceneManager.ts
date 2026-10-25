@@ -23,6 +23,8 @@ export class SceneManager {
   private animationState: AnimationState = 'idle';
   private animTimer = 0;
   private ragdollImpulse = 0;
+  private characterScale = 1.0;
+  private animationSpeed = 1.0;
 
   // Weather Particles
   private particles: THREE.Points | null = null;
@@ -153,6 +155,7 @@ export class SceneManager {
       this.scene.remove(this.characterRig.root);
     }
     this.characterRig = CharacterFactory.createCharacter(characterId);
+    this.characterRig.root.scale.setScalar(this.characterScale);
     this.scene.add(this.characterRig.root);
   }
 
@@ -161,7 +164,28 @@ export class SceneManager {
       this.scene.remove(this.characterRig.root);
     }
     this.characterRig = rig;
+    this.characterRig.root.scale.setScalar(this.characterScale);
     this.scene.add(this.characterRig.root);
+  }
+
+  public setCharacterScale(scale: number) {
+    this.characterScale = Math.max(0.2, Math.min(4.0, scale));
+    if (this.characterRig) {
+      this.characterRig.root.scale.setScalar(this.characterScale);
+    }
+  }
+
+  public setAnimationSpeed(speed: number) {
+    this.animationSpeed = Math.max(0.1, Math.min(3.0, speed));
+  }
+
+  public toggleSkeletonVisualizer(show: boolean) {
+    if (this.characterRig) {
+      const vis = this.characterRig.root.getObjectByName('AIRig_SkeletonVisualizer');
+      if (vis) {
+        vis.visible = show;
+      }
+    }
   }
 
   public setAnimationState(state: AnimationState) {
@@ -259,7 +283,7 @@ export class SceneManager {
    */
   private updateCharacterAnimation(delta: number) {
     if (!this.characterRig) return;
-    this.animTimer += delta;
+    this.animTimer += delta * this.animationSpeed;
     const t = this.animTimer;
     const rig = this.characterRig;
 
@@ -320,6 +344,26 @@ export class SceneManager {
         break;
       }
 
+      case 'run': {
+        // High speed athletic sprint with strong forward lean
+        const runCycle = Math.sin(t * 8.0);
+        const cosRun = Math.cos(t * 8.0);
+        rig.pelvis.position.y = 1.1 + Math.abs(cosRun) * 0.12;
+        rig.spine.rotation.x = 0.32; // Aggressive forward tilt
+        rig.spine.rotation.y = runCycle * 0.15;
+
+        rig.leftThigh.rotation.x = runCycle * 1.0;
+        rig.rightThigh.rotation.x = -runCycle * 1.0;
+        rig.leftShin.rotation.x = Math.max(0, -runCycle * 1.1);
+        rig.rightShin.rotation.x = Math.max(0, runCycle * 1.1);
+
+        rig.leftArm.rotation.x = -runCycle * 1.1;
+        rig.rightArm.rotation.x = runCycle * 1.1;
+        rig.leftForearm.rotation.x = -1.2;
+        rig.rightForearm.rotation.x = -1.2;
+        break;
+      }
+
       case 'slash': {
         // Explosive Machete / Weapon Attack with windup and impact
         const attackCycle = (t * 2.2) % 2.0;
@@ -336,13 +380,138 @@ export class SceneManager {
           rig.spine.rotation.y = 0.25;
           rig.rightArm.rotation.x = -0.9;
           rig.rightForearm.rotation.x = -0.2;
-          // Hit stop camera vibration
           this.camera.position.x += (Math.random() - 0.5) * 0.04;
         } else {
           // Recover to tense posture
           rig.spine.rotation.x = THREE.MathUtils.lerp(rig.spine.rotation.x, 0.05, 0.1);
           rig.rightArm.rotation.x = THREE.MathUtils.lerp(rig.rightArm.rotation.x, -0.2, 0.1);
         }
+        break;
+      }
+
+      case 'combatCombo': {
+        // 3-Hit Combo Attack: Cross Slash -> Backhand Cleave -> Heavy Chop
+        const comboTime = (t * 2.5) % 3.0;
+        if (comboTime < 1.0) {
+          // Hit 1: Horizontal Cleave
+          const p = comboTime;
+          rig.spine.rotation.y = THREE.MathUtils.lerp(-0.4, 0.6, p);
+          rig.rightArm.rotation.x = 0.8;
+          rig.rightArm.rotation.z = THREE.MathUtils.lerp(0.6, -0.8, p);
+        } else if (comboTime < 2.0) {
+          // Hit 2: Backhand Upward Slice
+          const p = comboTime - 1.0;
+          rig.spine.rotation.y = THREE.MathUtils.lerp(0.5, -0.5, p);
+          rig.rightArm.rotation.x = THREE.MathUtils.lerp(-0.5, 1.2, p);
+          rig.rightForearm.rotation.x = -0.6;
+        } else {
+          // Hit 3: Jump & Overhead Execution
+          const p = comboTime - 2.0;
+          if (p < 0.4) {
+            rig.pelvis.position.y = 1.4; // Jump up
+            rig.rightArm.rotation.x = 2.2;
+            rig.leftArm.rotation.x = 1.8;
+          } else {
+            rig.pelvis.position.y = 0.9; // Slam down
+            rig.rightArm.rotation.x = -0.8;
+            rig.leftArm.rotation.x = -0.6;
+            this.camera.position.y += (Math.random() - 0.5) * 0.05;
+          }
+        }
+        break;
+      }
+
+      case 'jump': {
+        // Dynamic Athletic Jump with Windup and Ground Impact
+        const jumpCycle = (t * 2.0) % 2.0;
+        if (jumpCycle < 0.4) {
+          // Crouch anticipation
+          rig.pelvis.position.y = 0.85;
+          rig.leftThigh.rotation.x = 0.6;
+          rig.rightThigh.rotation.x = 0.6;
+          rig.spine.rotation.x = 0.2;
+          rig.leftArm.rotation.x = -0.6;
+          rig.rightArm.rotation.x = -0.6;
+        } else if (jumpCycle < 1.2) {
+          // In the air! Peak height
+          const airPhase = (jumpCycle - 0.4) / 0.8;
+          const arc = Math.sin(airPhase * Math.PI);
+          rig.pelvis.position.y = 1.1 + arc * 1.2;
+          rig.leftThigh.rotation.x = -0.3;
+          rig.rightThigh.rotation.x = 0.4;
+          rig.leftArm.rotation.x = 1.6;
+          rig.rightArm.rotation.x = 1.6;
+        } else {
+          // Landing impact
+          rig.pelvis.position.y = 0.9;
+          rig.leftThigh.rotation.x = 0.4;
+          rig.rightThigh.rotation.x = 0.4;
+          this.camera.position.y += (Math.random() - 0.5) * 0.03;
+        }
+        break;
+      }
+
+      case 'celebrate': {
+        // Hype TikTok Stream Celebration / Victory Cheer
+        const cheerPulse = Math.sin(t * 6.0);
+        rig.pelvis.position.y = 1.1 + Math.abs(cheerPulse) * 0.1;
+        rig.spine.rotation.y = Math.sin(t * 3.0) * 0.2;
+
+        rig.rightArm.rotation.x = 2.2 + cheerPulse * 0.3;
+        rig.leftArm.rotation.x = 2.2 - cheerPulse * 0.3;
+        rig.rightForearm.rotation.x = -0.5;
+        rig.leftForearm.rotation.x = -0.5;
+        break;
+      }
+
+      case 'cower': {
+        // Fearful defense / cowering in terror
+        const shudder = Math.sin(t * 18.0) * 0.04;
+        rig.pelvis.position.y = 0.95;
+        rig.spine.rotation.x = 0.25 + shudder;
+        rig.head.rotation.x = 0.3;
+
+        rig.leftArm.rotation.x = 1.5;
+        rig.rightArm.rotation.x = 1.5;
+        rig.leftForearm.rotation.z = -1.1;
+        rig.rightForearm.rotation.z = 1.1;
+        break;
+      }
+
+      case 'evilLaugh': {
+        // Menacing shoulder-shuddering evil laugh
+        const laugh = Math.sin(t * 14.0) * 0.08;
+        rig.spine.rotation.x = -0.15 + laugh;
+        rig.head.rotation.x = -0.35 + laugh * 0.5;
+        rig.head.rotation.z = Math.sin(t * 4.0) * 0.06;
+
+        rig.leftArm.rotation.x = 0.5;
+        rig.rightArm.rotation.x = 0.5;
+        rig.leftForearm.rotation.x = -0.8;
+        rig.rightForearm.rotation.x = -0.8;
+        break;
+      }
+
+      case 'ninjaSneak': {
+        // Low stealth crouch walk
+        const sneakCycle = Math.sin(t * 3.0);
+        rig.pelvis.position.y = 0.78 + Math.abs(sneakCycle) * 0.03;
+        rig.spine.rotation.x = 0.45;
+        rig.leftThigh.rotation.x = sneakCycle * 0.6;
+        rig.rightThigh.rotation.x = -sneakCycle * 0.6;
+        rig.leftArm.rotation.x = -sneakCycle * 0.4;
+        rig.rightArm.rotation.x = sneakCycle * 0.4;
+        break;
+      }
+
+      case 'bow': {
+        // Elegant theatrical bow
+        const bowCycle = Math.sin(t * 1.2);
+        rig.spine.rotation.x = 0.65;
+        rig.head.rotation.x = 0.2;
+        rig.rightArm.rotation.x = 0.8;
+        rig.rightForearm.rotation.z = 0.8; // Hand over heart
+        rig.leftArm.rotation.x = -0.4; // Arm extended behind
         break;
       }
 

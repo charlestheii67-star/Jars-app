@@ -4,11 +4,68 @@ export type EnvironmentBiome = 'crystal_lake' | 'cyberpunk_alley' | 'martian_out
 
 export type CameraShot = 'wide' | 'closeUp' | 'dutch' | 'lowAngle' | 'orbit' | 'dolly' | 'freeOrbit';
 
-export type AnimationState = 'idle' | 'stalk' | 'walk' | 'slash' | 'talk' | 'dance' | 'ragdollShock';
+export type AnimationState =
+  | 'idle'
+  | 'stalk'
+  | 'walk'
+  | 'run'
+  | 'slash'
+  | 'talk'
+  | 'dance'
+  | 'ragdollShock'
+  | 'jump'
+  | 'celebrate'
+  | 'cower'
+  | 'evilLaugh'
+  | 'combatCombo'
+  | 'ninjaSneak'
+  | 'bow';
 
 export type LightingMood = 'normal' | 'bloodMoon' | 'neon' | 'goldenHour' | 'foggyHorror' | 'overcast';
 
 export type WeatherType = 'none' | 'heavyRain' | 'denseMist' | 'fireEmbers' | 'cyberDust' | 'snow';
+
+export type SpeechBlipType =
+  | 'slasher_grunt'
+  | 'retro_8bit'
+  | 'cyber_holo'
+  | 'animal_speak'
+  | 'crystal_whisper'
+  | 'mech_relay'
+  | 'custom_sound';
+
+export interface VoiceProfile {
+  presetName?: string;
+  pitch?: number;
+  rate?: number;
+  reverb?: number;
+  distortion?: number;
+  soundType?: SpeechBlipType;
+  customAudioBuffer?: AudioBuffer | null;
+  [key: string]: any;
+}
+
+export interface SpeechBlipConfig {
+  soundType: SpeechBlipType;
+  pitch: number;          // 0.2 to 2.5
+  speedMs: number;        // 35ms to 160ms per syllable
+  pitchVariation: number; // 0 to 1
+  customAudioBuffer?: AudioBuffer | null;
+  customAudioFileName?: string;
+  customAudioDuration?: number;
+  volume: number;         // 0 to 1
+}
+
+export interface AIRiggingData {
+  isRigged: boolean;
+  jointCount: number;
+  symmetryScore: number;
+  rigConfidence: number;
+  hasJawSocket: boolean;
+  showBoneSkeleton: boolean;
+  rigPreset: 'humanoid' | 'biped' | 'creature' | 'mechanical';
+  statusMessage?: string;
+}
 
 export interface CharacterConfig {
   id: CharacterId;
@@ -17,21 +74,9 @@ export interface CharacterConfig {
   personality: string;
   dialogueStyle: string;
   defaultAnimation: AnimationState;
-  voiceProfile: VoiceProfile;
+  blipConfig: SpeechBlipConfig;
   primaryColor: string;
   accentColor: string;
-}
-
-export interface VoiceProfile {
-  presetName: string;
-  pitch: number; // 0.5 to 2.0
-  rate: number;  // 0.5 to 2.0
-  reverb: number; // 0 to 1
-  distortion: number; // 0 to 1
-  formantShift: number; // -12 to +12 semitones
-  voiceGender: 'male' | 'female' | 'monster' | 'robot';
-  sampleAudioUrl?: string;
-  isCloned?: boolean;
 }
 
 export interface VisemeFrame {
@@ -76,6 +121,16 @@ export interface TikTokComment {
   timestamp: number;
 }
 
+export type CaptionStyle = 'cinema' | 'tiktok_viral' | 'retro_rpg' | 'horror_whisper';
+
+export interface CaptionConfig {
+  enabled: boolean;
+  style: CaptionStyle;
+  currentText: string;
+  speakerName: string;
+  visibleText: string;
+}
+
 export interface DirectorState {
   characterId: CharacterId;
   characterName: string;
@@ -94,4 +149,9 @@ export interface DirectorState {
   speechText: string;
   isSpeaking: boolean;
   clonedVoiceName: string;
+  characterScale: number;
+  animationSpeed: number;
+  speechBlipConfig: SpeechBlipConfig;
+  aiRigging: AIRiggingData;
+  captionConfig: CaptionConfig;
 }

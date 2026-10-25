@@ -8,6 +8,7 @@ import { SceneManager } from './engine/SceneManager';
 import { DirectorState, VoiceProfile } from './types';
 import { DirectorDock } from './components/DirectorDock';
 import { ViewportHUD } from './components/ViewportHUD';
+import { DialogueCaptionsOverlay } from './components/DialogueCaptionsOverlay';
 import { globalAudioVoiceEngine } from './engine/AudioVoiceEngine';
 
 export default function App() {
@@ -32,16 +33,31 @@ export default function App() {
     speechText: '',
     isSpeaking: false,
     clonedVoiceName: 'Slasher Growl',
-  });
-
-  const [voiceProfile, setVoiceProfile] = useState<VoiceProfile>({
-    presetName: 'Slasher Growl',
-    pitch: 0.35,
-    rate: 0.75,
-    reverb: 0.8,
-    distortion: 0.6,
-    formantShift: -8,
-    voiceGender: 'monster',
+    characterScale: 1.0,
+    animationSpeed: 1.0,
+    speechBlipConfig: {
+      soundType: 'slasher_grunt',
+      pitch: 0.65,
+      speedMs: 95,
+      pitchVariation: 0.35,
+      volume: 0.9,
+    },
+    aiRigging: {
+      isRigged: true,
+      jointCount: 18,
+      symmetryScore: 98.7,
+      rigConfidence: 97.4,
+      hasJawSocket: true,
+      showBoneSkeleton: false,
+      rigPreset: 'humanoid',
+    },
+    captionConfig: {
+      enabled: true,
+      style: 'cinema',
+      currentText: '',
+      speakerName: 'The Lake Revenant',
+      visibleText: '',
+    },
   });
 
   const [isDockVisible, setIsDockVisible] = useState(true);
@@ -75,10 +91,6 @@ export default function App() {
     setState((prev) => ({ ...prev, ...updates }));
   };
 
-  const handleUpdateVoiceProfile = (updates: Partial<VoiceProfile>) => {
-    setVoiceProfile((prev) => ({ ...prev, ...updates }));
-  };
-
   const handleQuickSlash = () => {
     if (sceneManagerRef.current) {
       sceneManagerRef.current.setAnimationState('slash');
@@ -105,14 +117,19 @@ export default function App() {
         onQuickSlash={handleQuickSlash}
       />
 
+      {/* Live Dialogue Captions Overlay */}
+      <DialogueCaptionsOverlay
+        captionConfig={state.captionConfig}
+        isSpeaking={state.isSpeaking || state.isPerformingScene}
+        characterName={state.characterName}
+      />
+
       {/* Floating Director Studio Dock */}
       {isDockVisible && (
         <DirectorDock
           sceneManager={sceneManagerRef.current}
           state={state}
           onUpdateState={handleUpdateState}
-          voiceProfile={voiceProfile}
-          onUpdateVoiceProfile={handleUpdateVoiceProfile}
         />
       )}
     </div>

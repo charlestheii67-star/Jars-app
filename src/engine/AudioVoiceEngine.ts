@@ -1,11 +1,11 @@
-import { VisemeFrame, VoiceProfile } from '../types';
+import { SpeechBlipConfig, VisemeFrame } from '../types';
 
 export class AudioVoiceEngine {
   private ctx: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private dataArray: Uint8Array | null = null;
-  private synthUtterance: SpeechSynthesisUtterance | null = null;
   private isSpeaking = false;
+  private currentBlipTimeout: any = null;
   private currentViseme: VisemeFrame = {
     jawOpen: 0,
     mouthWide: 0,
@@ -22,9 +22,7 @@ export class AudioVoiceEngine {
   private isBlinking = false;
   private onVisemeUpdate?: (viseme: VisemeFrame) => void;
 
-  constructor() {
-    // AudioContext will be initialized on first user gesture
-  }
+  constructor() {}
 
   public initAudioContext(): AudioContext {
     if (!this.ctx) {
@@ -32,7 +30,7 @@ export class AudioVoiceEngine {
       this.ctx = new AudioCtx();
       this.analyser = this.ctx.createAnalyser();
       this.analyser.fftSize = 512;
-      this.analyser.smoothingTimeConstant = 0.65;
+      this.analyser.smoothingTimeConstant = 0.6;
       const bufferLength = this.analyser.frequencyBinCount;
       this.dataArray = new Uint8Array(bufferLength);
     }
@@ -47,7 +45,16 @@ export class AudioVoiceEngine {
   }
 
   /**
-   * Evaluates current audio waveform & frequency bands to compute real-time facial visemes
+   * Decodes an uploaded audio file into an AudioBuffer for custom speech blips
+   */
+  public async loadAudioFileAsBuffer(file: File): Promise<AudioBuffer> {
+    const audioCtx = this.initAudioContext();
+    const arrayBuffer = await file.arrayBuffer();
+    return await audioCtx.decodeAudioData(arrayBuffer);
+  }
+
+  /**
+   * Updates real-time visemes from live audio frequency analysis
    */
   public update(delta: number): VisemeFrame {
     // Natural eye blink calculation
@@ -65,54 +72,53 @@ export class AudioVoiceEngine {
     this.currentViseme.eyeBlinkLeft = blinkAmount;
     this.currentViseme.eyeBlinkRight = blinkAmount;
 
-    // Analyze live audio frequencies if speaking
+    // Analyze live audio frequencies if blip speech is active
     if (this.isSpeaking && this.analyser && this.dataArray) {
       this.analyser.getByteFrequencyData(this.dataArray as any);
 
       // Low frequencies (vowels: AA, OH, AH) -> Jaw Open
       let lowEnergy = 0;
-      for (let i = 2; i < 16; i++) {
+      for (let i = 2; i < 20; i++) {
         lowEnergy += this.dataArray[i];
       }
-      lowEnergy /= 14 * 255;
+      lowEnergy /= 18 * 255;
 
       // Mid frequencies (vowels: EE, EH) -> Mouth Wide
       let midEnergy = 0;
-      for (let i = 16; i < 48; i++) {
+      for (let i = 20; i < 60; i++) {
         midEnergy += this.dataArray[i];
       }
-      midEnergy /= 32 * 255;
+      midEnergy /= 40 * 255;
 
-      // High frequencies (consonants: S, T, F, SH) -> Mouth Pucker / Teeth
+      // High frequencies (clicks, sibilants) -> Mouth Pucker
       let highEnergy = 0;
-      for (let i = 48; i < 120; i++) {
+      for (let i = 60; i < 140; i++) {
         highEnergy += this.dataArray[i];
       }
-      highEnergy /= 72 * 255;
+      highEnergy /= 80 * 255;
 
-      // Smooth interpolation for natural lip physics
-      const targetJaw = Math.min(1.0, lowEnergy * 1.6);
-      const targetWide = Math.min(1.0, midEnergy * 1.4);
-      const targetPucker = Math.min(1.0, highEnergy * 1.2);
+      // Smooth interpolation for natural lip bounce on blips
+      const targetJaw = Math.min(1.0, lowEnergy * 2.2 + highEnergy * 0.8);
+      const targetWide = Math.min(1.0, midEnergy * 1.8);
+      const targetPucker = Math.min(1.0, highEnergy * 1.5);
 
-      this.currentViseme.jawOpen += (targetJaw - this.currentViseme.jawOpen) * 0.45;
-      this.currentViseme.mouthWide += (targetWide - this.currentViseme.mouthWide) * 0.45;
-      this.currentViseme.mouthPucker += (targetPucker - this.currentViseme.mouthPucker) * 0.45;
-      this.currentViseme.chinDrop = this.currentViseme.jawOpen * 0.85;
+      this.currentViseme.jawOpen += (targetJaw - this.currentViseme.jawOpen) * 0.55;
+      this.currentViseme.mouthWide += (targetWide - this.currentViseme.mouthWide) * 0.55;
+      this.currentViseme.mouthPucker += (targetPucker - this.currentViseme.mouthPucker) * 0.55;
+      this.currentViseme.chinDrop = this.currentViseme.jawOpen * 0.9;
 
-      // Subtle natural speech head movements
-      this.currentViseme.headNod = Math.sin(Date.now() * 0.007) * (this.currentViseme.jawOpen * 0.15);
-      this.currentViseme.headTilt = Math.cos(Date.now() * 0.005) * (this.currentViseme.mouthWide * 0.1);
-      this.currentViseme.eyebrowArch = (lowEnergy + highEnergy) * 0.5;
+      this.currentViseme.headNod = Math.sin(Date.now() * 0.012) * (this.currentViseme.jawOpen * 0.12);
+      this.currentViseme.headTilt = Math.cos(Date.now() * 0.009) * (this.currentViseme.mouthWide * 0.08);
+      this.currentViseme.eyebrowArch = (lowEnergy + highEnergy) * 0.6;
     } else {
-      // Decay back to resting mouth position
-      this.currentViseme.jawOpen *= 0.75;
-      this.currentViseme.mouthWide *= 0.75;
-      this.currentViseme.mouthPucker *= 0.75;
-      this.currentViseme.chinDrop *= 0.75;
-      this.currentViseme.headNod *= 0.8;
-      this.currentViseme.headTilt *= 0.8;
-      this.currentViseme.eyebrowArch *= 0.8;
+      // Decay back to resting mouth
+      this.currentViseme.jawOpen *= 0.65;
+      this.currentViseme.mouthWide *= 0.65;
+      this.currentViseme.mouthPucker *= 0.65;
+      this.currentViseme.chinDrop *= 0.65;
+      this.currentViseme.headNod *= 0.75;
+      this.currentViseme.headTilt *= 0.75;
+      this.currentViseme.eyebrowArch *= 0.75;
     }
 
     if (this.onVisemeUpdate) {
@@ -123,111 +129,275 @@ export class AudioVoiceEngine {
   }
 
   /**
-   * Speaks dialogue text with voice cloning settings and drives automated real-time lip sync
+   * Plays character dialogue using sound effect speech blips or uploaded user audio files with live caption sync
    */
-  public speak(text: string, voiceProfile: VoiceProfile, onEnd?: () => void): void {
+  public speakWithBlips(
+    text: string,
+    config: SpeechBlipConfig,
+    onEnd?: () => void,
+    onProgress?: (visibleText: string) => void
+  ): void {
     if (!text || text.trim().length === 0) {
       if (onEnd) onEnd();
       return;
     }
 
+    this.stopSpeaking();
     const audioCtx = this.initAudioContext();
-    window.speechSynthesis.cancel();
-
-    // Setup speech synthesis utterance
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.pitch = Math.max(0.1, Math.min(2.0, voiceProfile.pitch));
-    utterance.rate = Math.max(0.4, Math.min(1.8, voiceProfile.rate));
-
-    // Choose preferred voice based on gender / personality
-    const voices = window.speechSynthesis.getVoices();
-    if (voices.length > 0) {
-      let chosenVoice: SpeechSynthesisVoice | undefined;
-      if (voiceProfile.voiceGender === 'female') {
-        chosenVoice = voices.find(v => v.lang.startsWith('en') && /female|samantha|zira|karen|victoria/i.test(v.name));
-      } else if (voiceProfile.voiceGender === 'monster' || voiceProfile.voiceGender === 'robot') {
-        chosenVoice = voices.find(v => v.lang.startsWith('en') && /david|daniel|alex|fred/i.test(v.name));
-      } else {
-        chosenVoice = voices.find(v => v.lang.startsWith('en') && /male|david|george|james/i.test(v.name));
-      }
-      if (chosenVoice) {
-        utterance.voice = chosenVoice;
-      }
-    }
-
-    // Connect synthetic audio simulator so analyser gets frequency data during speech
     this.isSpeaking = true;
-    const osc = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-    const filter = audioCtx.createBiquadFilter();
 
-    // Voice modulation based on profile
-    if (voiceProfile.voiceGender === 'monster') {
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(450, audioCtx.currentTime);
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(65, audioCtx.currentTime);
-    } else if (voiceProfile.voiceGender === 'robot') {
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(1200, audioCtx.currentTime);
-      filter.Q.setValueAtTime(4, audioCtx.currentTime);
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(140, audioCtx.currentTime);
-    } else {
-      filter.type = 'peaking';
-      filter.frequency.setValueAtTime(800, audioCtx.currentTime);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(180, audioCtx.currentTime);
-    }
+    // Filter characters into blippable tokens
+    const tokens = text.trim().split('');
+    let index = 0;
+    const baseSpeed = Math.max(35, Math.min(180, config.speedMs || 75));
 
-    // Feed to analyser node for viseme generation
-    gainNode.gain.setValueAtTime(0.015, audioCtx.currentTime); // Inaudible carrier signal for analyser
-    osc.connect(filter);
-    filter.connect(gainNode);
+    const playNextBlip = () => {
+      if (!this.isSpeaking || index >= tokens.length) {
+        this.isSpeaking = false;
+        if (onProgress) onProgress(text);
+        if (onEnd) onEnd();
+        return;
+      }
+
+      const char = tokens[index];
+      index++;
+
+      if (onProgress) {
+        onProgress(tokens.slice(0, index).join(''));
+      }
+
+      // Pause briefly on spaces and punctuation for natural conversational cadence
+      if (char === ' ') {
+        this.currentBlipTimeout = setTimeout(playNextBlip, baseSpeed * 0.7);
+        return;
+      } else if (char === ',' || char === ';') {
+        this.currentBlipTimeout = setTimeout(playNextBlip, baseSpeed * 2.2);
+        return;
+      } else if (char === '.' || char === '!' || char === '?') {
+        this.currentBlipTimeout = setTimeout(playNextBlip, baseSpeed * 3.5);
+        return;
+      }
+
+      // Calculate pitch jitter for expressive speech variation
+      const jitter = (Math.random() - 0.5) * 2 * (config.pitchVariation ?? 0.25);
+      const effectivePitch = Math.max(0.15, (config.pitch || 1.0) * (1 + jitter * 0.35));
+
+      // 1. If custom audio buffer is uploaded, play a slice of the custom sound effect
+      if (config.soundType === 'custom_sound' && config.customAudioBuffer) {
+        this.playCustomSoundSlice(audioCtx, config.customAudioBuffer, effectivePitch, config.volume ?? 0.85);
+      } else {
+        // 2. Play procedural sound effect blip based on character sound type
+        this.playProceduralBlip(audioCtx, config.soundType, effectivePitch, config.volume ?? 0.85);
+      }
+
+      this.currentBlipTimeout = setTimeout(playNextBlip, baseSpeed);
+    };
+
+    playNextBlip();
+  }
+
+  // Compatibility wrapper
+  public speak(text: string, voiceProfile: any, onEnd?: () => void, onProgress?: (visibleText: string) => void): void {
+    const config: SpeechBlipConfig = {
+      soundType: voiceProfile?.soundType || 'slasher_grunt',
+      pitch: voiceProfile?.pitch || 1.0,
+      speedMs: 75,
+      pitchVariation: 0.3,
+      customAudioBuffer: voiceProfile?.customAudioBuffer || null,
+      volume: 0.85,
+    };
+    this.speakWithBlips(text, config, onEnd, onProgress);
+  }
+
+  /**
+   * Plays a pitch-modulated snippet of the user-uploaded sound effect
+   */
+  private playCustomSoundSlice(ctx: AudioContext, buffer: AudioBuffer, pitch: number, vol: number) {
+    const now = ctx.currentTime;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.setValueAtTime(pitch, now);
+
+    const gainNode = ctx.createGain();
+    const blipDuration = 0.08;
+    gainNode.gain.setValueAtTime(vol, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + blipDuration);
+
+    source.connect(gainNode);
     if (this.analyser) {
       gainNode.connect(this.analyser);
     }
+    gainNode.connect(ctx.destination);
 
-    osc.start();
+    // Randomize start offset slightly for natural speech texture
+    const maxOffset = Math.max(0, buffer.duration - blipDuration);
+    const startOffset = Math.random() * Math.min(0.3, maxOffset);
 
-    // Natural speech rhythm pulse simulation while utterance is reading
-    const speechPulse = setInterval(() => {
-      if (!this.isSpeaking) {
-        clearInterval(speechPulse);
-        return;
+    source.start(now, startOffset, blipDuration);
+  }
+
+  /**
+   * Generates procedural character speech blips
+   */
+  private playProceduralBlip(ctx: AudioContext, type: string, pitch: number, vol: number) {
+    const now = ctx.currentTime;
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(vol * 0.7, now);
+
+    if (this.analyser) {
+      masterGain.connect(this.analyser);
+    }
+    masterGain.connect(ctx.destination);
+
+    switch (type) {
+      case 'slasher_grunt': {
+        // Jason Slasher: Deep guttural throat click & raspy sub-rumble
+        const osc = ctx.createOscillator();
+        const filter = ctx.createBiquadFilter();
+        const blipGain = ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(55 * pitch, now);
+        osc.frequency.exponentialRampToValueAtTime(35 * pitch, now + 0.08);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(280 * pitch, now);
+
+        blipGain.gain.setValueAtTime(0.9, now);
+        blipGain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+
+        // Add raspy noise click
+        const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.04, ctx.sampleRate);
+        const data = noiseBuf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+        const noiseSrc = ctx.createBufferSource();
+        noiseSrc.buffer = noiseBuf;
+
+        osc.connect(filter);
+        filter.connect(blipGain);
+        blipGain.connect(masterGain);
+        noiseSrc.connect(masterGain);
+
+        osc.start(now);
+        noiseSrc.start(now);
+        osc.stop(now + 0.08);
+        break;
       }
-      const syllableIntensity = Math.random() * 0.7 + 0.3;
-      gainNode.gain.setValueAtTime(syllableIntensity * 0.1, audioCtx.currentTime);
-      osc.frequency.setValueAtTime(120 + Math.random() * 200, audioCtx.currentTime);
-    }, 110);
 
-    utterance.onend = () => {
-      this.isSpeaking = false;
-      clearInterval(speechPulse);
-      try {
-        osc.stop();
-        osc.disconnect();
-      } catch (e) {}
-      if (onEnd) onEnd();
-    };
+      case 'retro_8bit': {
+        // 8-Bit Retro RPG dialogue blip (Undertale / Earthbound style)
+        const osc = ctx.createOscillator();
+        const blipGain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(320 * pitch, now);
+        osc.frequency.setValueAtTime(440 * pitch, now + 0.02);
 
-    utterance.onerror = () => {
-      this.isSpeaking = false;
-      clearInterval(speechPulse);
-      try {
-        osc.stop();
-        osc.disconnect();
-      } catch (e) {}
-      if (onEnd) onEnd();
-    };
+        blipGain.gain.setValueAtTime(0.4, now);
+        blipGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
 
-    this.synthUtterance = utterance;
-    window.speechSynthesis.speak(utterance);
+        osc.connect(blipGain);
+        blipGain.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 0.06);
+        break;
+      }
+
+      case 'cyber_holo': {
+        // Cyberpunk synthetic chirp with frequency modulation
+        const osc = ctx.createOscillator();
+        const filter = ctx.createBiquadFilter();
+        const blipGain = ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(800 * pitch, now);
+        osc.frequency.exponentialRampToValueAtTime(300 * pitch, now + 0.06);
+
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1200 * pitch, now);
+        filter.Q.setValueAtTime(4, now);
+
+        blipGain.gain.setValueAtTime(0.6, now);
+        blipGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+
+        osc.connect(filter);
+        filter.connect(blipGain);
+        blipGain.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 0.06);
+        break;
+      }
+
+      case 'animal_speak': {
+        // Animal Crossing style rapid vocal warble
+        const osc = ctx.createOscillator();
+        const blipGain = ctx.createGain();
+        osc.type = 'triangle';
+        const startFreq = 400 * pitch;
+        const endFreq = 650 * pitch;
+        osc.frequency.setValueAtTime(startFreq, now);
+        osc.frequency.linearRampToValueAtTime(endFreq, now + 0.05);
+
+        blipGain.gain.setValueAtTime(0.7, now);
+        blipGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+
+        osc.connect(blipGain);
+        blipGain.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 0.06);
+        break;
+      }
+
+      case 'crystal_whisper': {
+        // Ethereal resonant vocal whisper / rune chime
+        const osc = ctx.createOscillator();
+        const filter = ctx.createBiquadFilter();
+        const blipGain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(520 * pitch, now);
+
+        filter.type = 'peaking';
+        filter.frequency.setValueAtTime(900 * pitch, now);
+        filter.gain.setValueAtTime(12, now);
+
+        blipGain.gain.setValueAtTime(0.5, now);
+        blipGain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+        osc.connect(filter);
+        filter.connect(blipGain);
+        blipGain.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 0.09);
+        break;
+      }
+
+      case 'mech_relay':
+      default: {
+        // Titan Mech pneumatic relay click
+        const osc = ctx.createOscillator();
+        const blipGain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(180 * pitch, now);
+        osc.frequency.exponentialRampToValueAtTime(60 * pitch, now + 0.04);
+
+        blipGain.gain.setValueAtTime(0.8, now);
+        blipGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+        osc.connect(blipGain);
+        blipGain.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 0.05);
+        break;
+      }
+    }
   }
 
   public stopSpeaking(): void {
     this.isSpeaking = false;
-    window.speechSynthesis.cancel();
+    if (this.currentBlipTimeout) {
+      clearTimeout(this.currentBlipTimeout);
+      this.currentBlipTimeout = null;
+    }
   }
 
   /**
@@ -239,7 +409,6 @@ export class AudioVoiceEngine {
 
     switch (type) {
       case 'metalSlash': {
-        // High-pass metallic scrape followed by sub-bass slice
         const bufferSize = audioCtx.sampleRate * 0.5;
         const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
@@ -264,7 +433,6 @@ export class AudioVoiceEngine {
         gain.connect(audioCtx.destination);
         noise.start(now);
 
-        // Heavy impact thump
         const subOsc = audioCtx.createOscillator();
         const subGain = audioCtx.createGain();
         subOsc.frequency.setValueAtTime(110, now);
@@ -279,7 +447,6 @@ export class AudioVoiceEngine {
       }
 
       case 'subBassBoom': {
-        // Massive cinematic movie trailer boom
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = 'sine';
@@ -295,8 +462,7 @@ export class AudioVoiceEngine {
       }
 
       case 'synthDrone': {
-        // Atmospheric dark synth chord
-        [110, 164.8, 220].forEach(freq => {
+        [110, 164.8, 220].forEach((freq) => {
           const osc = audioCtx.createOscillator();
           const gain = audioCtx.createGain();
           const filter = audioCtx.createBiquadFilter();
@@ -317,7 +483,6 @@ export class AudioVoiceEngine {
       }
 
       case 'thunder': {
-        // Low-frequency rumble + explosive lightning crack
         const bufferSize = audioCtx.sampleRate * 1.5;
         const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
@@ -341,8 +506,7 @@ export class AudioVoiceEngine {
       }
 
       case 'giftSparkle': {
-        // TikTok gift coin/galaxy sparkling pentatonic arpeggio
-        const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5]; // C E G C E
+        const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
         notes.forEach((freq, idx) => {
           const t = now + idx * 0.08;
           const osc = audioCtx.createOscillator();
@@ -360,7 +524,6 @@ export class AudioVoiceEngine {
       }
 
       case 'kiKiMaMa': {
-        // Atmospheric whispered rhythm echo: ki-ki-ki, ma-ma-ma
         const timings = [0, 0.12, 0.24, 0.45, 0.57, 0.69];
         timings.forEach((tOffset, i) => {
           const t = now + tOffset;
